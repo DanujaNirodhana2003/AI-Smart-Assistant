@@ -4,6 +4,11 @@ const sendBtn = document.getElementById('send-btn');
 const closeBtn = document.getElementById('close-btn');
 let thinkingBubble = null; // Track the "thinking..." indicator
 const minBtn = document.getElementById('min-btn');
+const newChatBtn = document.getElementById('new-chat-btn');
+const statusDot = document.getElementById('status-dot');
+const connectionStatus = document.getElementById('connection-status');
+const quickActions = document.querySelectorAll('.quick-actions button');
+const captureBtn = document.getElementById('capture-btn');
 
 const { ipcRenderer } = require('electron');
 let ws = null;
@@ -16,6 +21,8 @@ function connectWebSocket() {
 
     ws.onopen = () => {
         isConnected = true;
+            statusDot.className = 'status-dot online';
+            connectionStatus.textContent = 'Online';
         console.log(`Connected to WebSocket server on port ${chatPort}`);
     };
 
@@ -28,6 +35,11 @@ function connectWebSocket() {
                     ipcRenderer.send('hide-window');
                 } else if (data.action === 'quit') {
                     window.close();
+                    } else if (data.action === 'clear') {
+                        chatHistory.innerHTML = '';
+                    } else if (data.action === 'remove_last_assistant') {
+                        const messages = chatHistory.querySelectorAll('.message-row.system:not(#thinking-row)');
+                        if (messages.length) messages[messages.length - 1].remove();
                 }
                 return;
             }
@@ -47,6 +59,8 @@ function connectWebSocket() {
 
     ws.onclose = () => {
         isConnected = false;
+            statusDot.className = 'status-dot';
+            connectionStatus.textContent = 'Reconnecting';
         console.log('Disconnected from WebSocket server; retrying...');
         reconnectTimer = setTimeout(connectWebSocket, 1000);
     };
@@ -118,6 +132,22 @@ function addMessage(text, sender) {
         bubble.innerHTML = '<span class="typing-dots"><span></span><span></span><span></span></span>';
         row.appendChild(bubble);
         row.appendChild(timeSpan);
+        const actions = document.createElement('div');
+        actions.className = 'message-actions';
+        const copyButton = document.createElement('button');
+        copyButton.textContent = 'Copy';
+        copyButton.title = 'Copy response';
+        copyButton.addEventListener('click', async () => {
+            await navigator.clipboard.writeText(text);
+            copyButton.textContent = 'Copied';
+            setTimeout(() => { copyButton.textContent = 'Copy'; }, 1200);
+        });
+        actions.appendChild(copyButton);
+        const regenerateButton = document.createElement('button');
+        regenerateButton.textContent = 'Regenerate';
+        regenerateButton.addEventListener('click', regenerateLastResponse);
+        actions.appendChild(regenerateButton);
+        row.appendChild(actions);
         chatHistory.appendChild(row);
         chatHistory.scrollTop = chatHistory.scrollHeight;
 
@@ -127,6 +157,24 @@ function addMessage(text, sender) {
     }
 
     chatHistory.scrollTop = chatHistory.scrollHeight;
+}
+
+function sendAction(action) {
+    if (ws && isConnected && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action }));
+        return true;
+    }
+    return false;
+}
+
+captureBtn.addEventListener('click', () => {
+    if (!sendAction('capture')) {
+        addMessage('Capture is still connecting. Please try again in a moment.', 'system');
+    }
+});
+
+function regenerateLastResponse() {
+    if (sendAction('regenerate')) showThinking();
 }
 
 function showThinking() {
@@ -168,6 +216,20 @@ function sendMessage() {
 }
 
 sendBtn.addEventListener('click', sendMessage);
+
+newChatBtn.addEventListener('click', () => {
+    if (sendAction('clear_history')) {
+        chatHistory.innerHTML = '';
+        chatInput.focus();
+    }
+});
+
+quickActions.forEach((button) => {
+    button.addEventListener('click', () => {
+        chatInput.value = `${button.dataset.prompt} `;
+        chatInput.focus();
+    });
+});
 
 chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {

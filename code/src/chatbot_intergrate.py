@@ -89,19 +89,20 @@ class PatchedMistralClient:
         return {"response": res}
 
 
-def _patched_run_server(msg_queue):
+def _patched_run_server(msg_queue, control_queue):
     # Monkey-patch MistralClient in chat_ui so it uses our history-aware client
     chat_ui.MistralClient = PatchedMistralClient
-    chat_ui._run_server(msg_queue)
+    chat_ui._run_server(msg_queue, control_queue)
 
 
 def start_chat_process():
     """Starts the FastAPI chat process using the patched client"""
     msg_queue = multiprocessing.Queue()
+    control_queue = multiprocessing.Queue()
     p = multiprocessing.Process(
         target=_patched_run_server,
-        args=(msg_queue,),
+        args=(msg_queue, control_queue),
         daemon=True
     )
     p.start()
-    return msg_queue, p
+    return msg_queue, control_queue, p

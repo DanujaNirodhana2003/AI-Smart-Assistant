@@ -44,6 +44,31 @@ body {
     /* Allows moving the frameless window */
 }
 
+.title-group {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #F9E2AF;
+    box-shadow: 0 0 8px rgba(249, 226, 175, 0.6);
+}
+
+.status-dot.online {
+    background: #A6E3A1;
+    box-shadow: 0 0 8px rgba(166, 227, 161, 0.7);
+}
+
+.connection-status {
+    color: var(--time-color);
+    font-size: 10px;
+    letter-spacing: 0.3px;
+}
+
 .title {
     color: var(--accent-color);
     font-weight: 600;
@@ -55,6 +80,32 @@ body {
     align-items: center;
     gap: 12px;
     -webkit-app-region: no-drag;
+}
+
+.header-btn {
+    background: var(--input-bg);
+    border: 1px solid rgba(137, 180, 250, 0.22);
+    border-radius: 7px;
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 16px;
+    height: 25px;
+    width: 25px;
+}
+
+.capture-btn {
+    background: rgba(137, 180, 250, 0.16);
+    border: 1px solid rgba(137, 180, 250, 0.4);
+    border-radius: 7px;
+    color: var(--accent-color);
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 6px 8px;
+}
+
+.capture-btn:hover {
+    background: rgba(137, 180, 250, 0.28);
 }
 
 .min-btn {
@@ -154,6 +205,51 @@ body {
     border-radius: 15px;
     padding: 10px 15px;
     -webkit-app-region: no-drag;
+}
+
+.quick-actions {
+    display: flex;
+    gap: 6px;
+    margin: 0 0 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.quick-actions button,
+.message-actions button {
+    background: rgba(49, 50, 68, 0.75);
+    border: 1px solid rgba(137, 180, 250, 0.18);
+    border-radius: 7px;
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 10px;
+    padding: 6px 9px;
+    white-space: nowrap;
+}
+
+.quick-actions button:hover,
+.message-actions button:hover,
+.header-btn:hover {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+}
+
+.message-actions {
+    display: flex;
+    gap: 5px;
+    margin: 5px 0 0 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.message-row.system:hover .message-actions {
+    opacity: 1;
+}
+
+.input-hint {
+    color: var(--time-color);
+    font-size: 10px;
+    white-space: nowrap;
 }
 
 #chat-input {
@@ -256,4 +352,4 @@ body {
 @keyframes fade-in {
     from { opacity: 0; transform: translateY(5px); }
     to   { opacity: 1; transform: translateY(0); }
-}
+}

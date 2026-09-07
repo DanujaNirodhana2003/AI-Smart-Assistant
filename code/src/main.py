@@ -9,6 +9,7 @@ import re
 import difflib
 import ctypes
 import multiprocessing
+import queue
 import socket
 from src.ai_module.rag import rag_query, build_faiss_index, cache_suggestion
 import subprocess
@@ -222,7 +223,7 @@ def main():
 
     # Start chat UI process (FastAPI server)
     from src import chatbot_intergrate
-    chat_queue, chat_process = chatbot_intergrate.start_chat_process()
+    chat_queue, capture_control_queue, chat_process = chatbot_intergrate.start_chat_process()
 
     # Start Electron UI Subprocess
     electron_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'electron_ui'))
@@ -237,6 +238,14 @@ def main():
     tray_thread.start()
 
     while running:
+        try:
+            while True:
+                control_message = capture_control_queue.get_nowait()
+                if control_message.get("action") == "capture":
+                    trigger_capture()
+        except queue.Empty:
+            pass
+
         if capture_event.is_set():
             capture_event.clear()
             run_capture_logic()

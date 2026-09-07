@@ -44,6 +44,24 @@ manager = ConnectionManager()
 async def websocket_endpoint(websocket: WebSocket):
     from src.chatbot_intergrate import chatbot
     await manager.connect(websocket)
+
+    def last_user_message():
+        for message in reversed(chatbot.get_history()):
+            if message["role"] == "user":
+                return message["content"]
+        return None
+
+    async def generate_reply(prompt):
+        def call_mistral(message):
+            client = MistralClient()
+            result = client.generate(
+                f"You are a helpful AI assistant.\nUser: {message}\nAssistant:"
+            )
+            return result.get("response") or "AI unavailable. Make sure Ollama is running (ollama run mistral)."
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, call_mistral, prompt)
+
     try:
         # Send existing history to the newly connected client
         for msg in chatbot.get_history():
@@ -55,19 +73,37 @@ async def websocket_endpoint(websocket: WebSocket):
 
         while True:
             data = await websocket.receive_text()
+
+            try:
+                request = json.loads(data)
+            except json.JSONDecodeError:
+                request = None
+
+            if isinstance(request, dict) and request.get("action") == "clear_history":
+                chatbot.clear_history()
+                await manager.broadcast({"action": "clear"})
+                continue
+
+            if isinstance(request, dict) and request.get("action") == "capture":
+                if global_control_queue:
+                    global_control_queue.put({"action": "capture"})
+                continue
+
+            if isinstance(request, dict) and request.get("action") == "regenerate":
+                prompt = last_user_message()
+                if not prompt:
+                    continue
+                if chatbot.history and chatbot.history[-1]["role"] == "assistant":
+                    chatbot.history.pop()
+                await manager.broadcast({"action": "remove_last_assistant"})
+                ai_reply = await generate_reply(prompt)
+                await manager.broadcast({"sender": "system", "text": ai_reply})
+                continue
+
             # Echo the user's message back so it appears in the chat
             await manager.broadcast({"sender": "user", "text": data})
 
-            # Call Mistral via the patched client (which uses chatbot memory)
-            def call_mistral(prompt):
-                client = MistralClient()
-                result = client.generate(
-                    f"You are a helpful AI assistant.\nUser: {prompt}\nAssistant:"
-                )
-                return result.get("response") or "⚠️ AI unavailable. Make sure Ollama is running (`ollama run mistral`)."
-
-            loop = asyncio.get_event_loop()
-            ai_reply = await loop.run_in_executor(None, call_mistral, data)
+            ai_reply = await generate_reply(data)
             await manager.broadcast({"sender": "system", "text": ai_reply})
     except WebSocketDisconnect:
         manager.disconnect(websocket)
@@ -116,10 +152,12 @@ async def startup_event():
         asyncio.create_task(check_queue(global_msg_queue))
 
 global_msg_queue = None
+global_control_queue = None
 
-def _run_server(msg_queue):
-    global global_msg_queue
+def _run_server(msg_queue, control_queue=None):
+    global global_msg_queue, global_control_queue
     global_msg_queue = msg_queue
+    global_control_queue = control_queue
     port = int(os.environ.get("CHAT_SERVER_PORT", "8000"))
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
 
@@ -129,6 +167,6 @@ def start_chat_process():
     Maintains the same interface so main.py doesn't need modifications.
     """
     msg_queue = multiprocessing.Queue()
-    p = multiprocessing.Process(target=_run_server, args=(msg_queue,), daemon=True)
+    p = multiprocessing.Process(target=_run_server, args=(msg_queue, None), daemon=True)
     p.start()
     return msg_queue, p
